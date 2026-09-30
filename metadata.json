@@ -1,0 +1,6 @@
+{
+  "name": "StockPrompt 4K - AI Microstock Video Studio",
+  "description": "Platform brainstorming dan generator prompt video 4K HD 5-15 detik untuk Shutterstock & Adobe Stock berdasar analisis tren pasar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
