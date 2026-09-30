@@ -14,6 +14,52 @@ export interface ApiResponse<T = any> {
   seasonalCalendar?: any;
 }
 
+/**
+ * Extracts a human-readable string from any error object,
+ * preventing "[object Object]" from ever rendering in the UI.
+ */
+export function formatErrorMessage(err: any): string {
+  if (!err) return 'Terjadi gangguan jaringan atau server sedang sibuk. Silakan coba lagi.';
+  
+  if (typeof err === 'string') {
+    if (err === '[object Object]') {
+      return 'Terjadi kendala format data pada server. Silakan klik tombol Coba Lagi.';
+    }
+    return err;
+  }
+
+  // Handle standard Error instance
+  if (typeof err.message === 'string' && err.message !== '[object Object]') {
+    return err.message;
+  }
+
+  // Handle nested API error objects (e.g. Google API { error: { message: ... } })
+  if (err.error) {
+    if (typeof err.error === 'string' && err.error !== '[object Object]') {
+      return err.error;
+    }
+    if (typeof err.error.message === 'string' && err.error.message !== '[object Object]') {
+      return err.error.message;
+    }
+  }
+
+  // Handle details array
+  if (Array.isArray(err.details) && err.details.length > 0) {
+    return String(err.details[0]);
+  }
+
+  try {
+    const jsonStr = JSON.stringify(err);
+    if (jsonStr && jsonStr !== '{}') {
+      return jsonStr;
+    }
+  } catch {
+    // ignore
+  }
+
+  return 'Server sedang memproses antrean permintaan. Silakan klik tombol Coba Lagi.';
+}
+
 export async function safeFetchJson<T = any>(
   url: string,
   options?: RequestInit,
@@ -47,15 +93,21 @@ export async function safeFetchJson<T = any>(
 
         return {
           success: false,
-          error: `Server sedang menyiapkan respon atau memulai ulang (${res.status}). Silakan coba klik tombol generate kembali.`
+          error: `Server sedang memulai ulang (${res.status}). Silakan coba klik tombol generate kembali.`
         };
       }
 
       // Safe JSON parse
       const data = await res.json();
+
+      // Normalize error property if it is an object
+      if (data && data.error && typeof data.error !== 'string') {
+        data.error = formatErrorMessage(data.error);
+      }
+
       return data;
     } catch (err: any) {
-      console.warn(`[API] Fetch error for ${url} (Attempt ${attempt + 1}/${retries + 1}):`, err.message);
+      console.warn(`[API] Fetch error for ${url} (Attempt ${attempt + 1}/${retries + 1}):`, err);
 
       if (attempt < retries) {
         attempt++;
@@ -65,7 +117,7 @@ export async function safeFetchJson<T = any>(
 
       return {
         success: false,
-        error: 'Koneksi ke server terputus sesaat saat server memulai ulang. Silakan klik tombol Coba Lagi.'
+        error: formatErrorMessage(err)
       };
     }
   }

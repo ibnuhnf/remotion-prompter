@@ -12,7 +12,7 @@ import {
 import { PromptConcept, GeneratorOptions } from '../types';
 import { PromptCard } from './PromptCard';
 import { CsvExportModal } from './CsvExportModal';
-import { safeFetchJson } from '../utils/api';
+import { safeFetchJson, formatErrorMessage } from '../utils/api';
 import { 
   Sparkles, 
   Dices, 
@@ -89,11 +89,11 @@ export const StudioBrainstorm: React.FC<StudioBrainstormProps> = ({
           setInfoNotice(data.notice);
         }
       } else {
-        throw new Error(data.error || 'Gagal merumuskan prompt video');
+        setError(formatErrorMessage(data.error || 'Gagal merumuskan prompt video'));
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Terjadi gangguan jaringan saat memproses prompt. Silakan klik tombol Coba Lagi.');
+      setError(formatErrorMessage(err));
     } finally {
       setLoading(false);
     }

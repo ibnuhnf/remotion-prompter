@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { safeFetchJson } from '../utils/api';
+import { safeFetchJson, formatErrorMessage } from '../utils/api';
 import { 
   Wand2, 
   Sparkles, 
@@ -42,11 +42,11 @@ export const PromptDoctor: React.FC = () => {
       if (data.success && data.data) {
         setResult(data.data);
       } else {
-        setError(data.error || 'Gagal merombak prompt. Silakan klik tombol Coba Lagi.');
+        setError(formatErrorMessage(data.error || 'Gagal merombak prompt. Silakan klik tombol Coba Lagi.'));
       }
     } catch (err: any) {
       console.error(err);
-      setError('Koneksi terputus sesaat. Silakan klik tombol Coba Lagi.');
+      setError(formatErrorMessage(err));
     } finally {
       setLoading(false);
     }
