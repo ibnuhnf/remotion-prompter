@@ -15,24 +15,45 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// Shared Gemini client utility
-const apiKey = process.env.GEMINI_API_KEY || '';
-const ai = new GoogleGenAI({
-  apiKey: apiKey,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
+// Shared Gemini client utility & key validator
+function getGeminiSetup() {
+  const currentKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
+  
+  if (!currentKey) {
+    return {
+      isValidKey: false,
+      reason: 'Mode Kurasi Cerdas Bawaan aktif (GEMINI_API_KEY belum dikonfigurasi).',
+      client: null
+    };
   }
-});
 
-// Helper to call Gemini with multi-model fallback (gemini-3.8-flash -> gemini-3.1-flash-lite -> gemini-flash-latest)
+  return {
+    isValidKey: true,
+    reason: null,
+    client: new GoogleGenAI({
+      apiKey: currentKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    }),
+    apiKey: currentKey
+  };
+}
+
+// Helper to call Gemini with multi-model fallback (gemini-3.1-flash-lite -> gemini-3.8-flash -> gemini-flash-latest)
 async function callGeminiWithFallback(params: {
   contents: string;
   systemInstruction?: string;
   responseMimeType?: string;
 }) {
-  const models = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const setup = getGeminiSetup();
+  if (!setup.isValidKey || !setup.client) {
+    throw new Error(setup.reason || 'Kunci Gemini API tidak valid');
+  }
+
+  const models = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
   let lastError: any = null;
 
   for (const model of models) {
@@ -41,7 +62,7 @@ async function callGeminiWithFallback(params: {
       if (params.systemInstruction) config.systemInstruction = params.systemInstruction;
       if (params.responseMimeType) config.responseMimeType = params.responseMimeType;
 
-      const response = await ai.models.generateContent({
+      const response = await setup.client.models.generateContent({
         model,
         contents: params.contents,
         config
@@ -53,8 +74,8 @@ async function callGeminiWithFallback(params: {
     } catch (err: any) {
       console.warn(`[StockPrompt AI] Model ${model} returned error (${err.message || err}). Trying fallback model...`);
       lastError = err;
-      // Wait 500ms before attempting fallback model
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait 300ms before attempting fallback model
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
 
@@ -478,10 +499,12 @@ app.post('/api/trends/live', async (req, res) => {
   try {
     const { category = 'All' } = req.body;
 
-    if (!apiKey) {
+    const setup = getGeminiSetup();
+    if (!setup.isValidKey) {
       return res.json({
         success: true,
         source: 'curated-cache',
+        notice: setup.reason,
         data: CURATED_TRENDS
       });
     }
@@ -601,7 +624,8 @@ Berikan output JSON valid tanpa pembungkus markdown (no \`\`\`json) dengan forma
   }
 ]`;
 
-    if (!apiKey) {
+    const setup = getGeminiSetup();
+    if (!setup.isValidKey) {
       const fallbackItems = generateProcedural4KPrompts({
         theme,
         customIdea,
@@ -616,7 +640,8 @@ Berikan output JSON valid tanpa pembungkus markdown (no \`\`\`json) dengan forma
 
       return res.json({
         success: true,
-        source: 'preview-mode',
+        source: 'smart-fallback',
+        notice: setup.reason,
         data: fallbackItems
       });
     }
@@ -639,7 +664,8 @@ Berikan output JSON valid tanpa pembungkus markdown (no \`\`\`json) dengan forma
         data: parsed
       });
     } catch (aiErr: any) {
-      console.warn('Gemini 503/Busy fallback activated:', aiErr.message);
+      console.warn('Gemini fallback activated:', aiErr.message);
+      const isKeyError = aiErr.message?.includes('API key') || aiErr.message?.includes('AQ.');
       // Auto-fallback to procedural smart generator so the user NEVER gets an error
       const fallbackItems = generateProcedural4KPrompts({
         theme,
@@ -656,7 +682,9 @@ Berikan output JSON valid tanpa pembungkus markdown (no \`\`\`json) dengan forma
       return res.json({
         success: true,
         source: 'smart-fallback',
-        notice: 'Model AI Google sedang mengalami lonjakan antrean trafik (503). Prompt 4K berhasil dirancang presisi oleh Mesin Cadangan.',
+        notice: isKeyError 
+          ? 'Kunci GEMINI_API_KEY tidak valid. Gemini API Key resmi dari Google AI Studio selalu diawali "AIzaSy...". Hasil prompt 4K dibuat oleh Mesin Kurasi Cadangan.'
+          : (aiErr.message || 'Model AI sedang dalam lonjakan trafik. Hasil dibuat oleh Mesin Kurasi Cadangan.'),
         data: fallbackItems
       });
     }
@@ -709,10 +737,12 @@ app.post('/api/upscale-prompt', async (req, res) => {
       ]
     };
 
-    if (!apiKey) {
+    const setup = getGeminiSetup();
+    if (!setup.isValidKey) {
       return res.json({
         success: true,
-        source: 'preview-mode',
+        source: 'smart-fallback',
+        notice: setup.reason,
         data: fallbackUpscale
       });
     }
@@ -822,9 +852,12 @@ app.post('/api/generate-series', async (req, res) => {
       ]
     };
 
-    if (!apiKey) {
+    const setup = getGeminiSetup();
+    if (!setup.isValidKey) {
       return res.json({
         success: true,
+        source: 'smart-fallback',
+        notice: setup.reason,
         data: fallbackSeries
       });
     }
