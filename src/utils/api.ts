@@ -25,11 +25,17 @@ export function formatErrorMessage(err: any): string {
     if (err === '[object Object]') {
       return 'Terjadi kendala format data pada server. Silakan klik tombol Coba Lagi.';
     }
+    if (err.toLowerCase().includes('the page could not be found') || err.toLowerCase().includes('the page cannot')) {
+      return 'Server baru saja memulai ulang setelah pembaruan Environment Variable (GEMINI_API_KEY). Silakan klik tombol "Coba Lagi" sekarang.';
+    }
     return err;
   }
 
   // Handle standard Error instance
   if (typeof err.message === 'string' && err.message !== '[object Object]') {
+    if (err.message.toLowerCase().includes('the page could not be found')) {
+      return 'Server baru saja memulai ulang setelah pembaruan Environment Variable (GEMINI_API_KEY). Silakan klik tombol "Coba Lagi" sekarang.';
+    }
     return err.message;
   }
 
