@@ -82,6 +82,43 @@ async function callGeminiWithFallback(params: {
   throw lastError || new Error('Semua model Gemini sedang mengalami lonjakan trafik');
 }
 
+// Helper to robustly extract and parse JSON from Gemini responses
+function parseGeminiJson<T = any>(rawText: string): T {
+  if (!rawText) throw new Error('Respon AI kosong');
+  
+  // 1. Remove markdown code fences ```json ... ```
+  let text = rawText.trim();
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+  try {
+    return JSON.parse(text);
+  } catch (err1) {
+    // 2. Try finding the outer-most JSON array [...]
+    const startArray = text.indexOf('[');
+    const endArray = text.lastIndexOf(']');
+    if (startArray !== -1 && endArray !== -1 && endArray > startArray) {
+      try {
+        return JSON.parse(text.slice(startArray, endArray + 1));
+      } catch (err2) {
+        // continue
+      }
+    }
+
+    // 3. Try finding the outer-most JSON object {...}
+    const startObj = text.indexOf('{');
+    const endObj = text.lastIndexOf('}');
+    if (startObj !== -1 && endObj !== -1 && endObj > startObj) {
+      try {
+        return JSON.parse(text.slice(startObj, endObj + 1));
+      } catch (err3) {
+        // continue
+      }
+    }
+
+    throw new Error('Gagal memformat struktur data AI');
+  }
+}
+
 // Procedural Smart 4K Prompt Generator (Instant fail-safe when Google AI models hit temporary 503 outage)
 function generateProcedural4KPrompts(options: {
   theme: string;
@@ -533,8 +570,7 @@ Kembalikan HANYA format JSON valid tanpa format markdown (no \`\`\`json block) s
         responseMimeType: 'application/json',
       });
 
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = parseGeminiJson(text);
 
       return res.json({
         success: true,
@@ -654,8 +690,7 @@ Berikan output JSON valid tanpa pembungkus markdown (no \`\`\`json) dengan forma
         responseMimeType: 'application/json'
       });
 
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = parseGeminiJson(text);
 
       return res.json({
         success: true,
@@ -772,8 +807,7 @@ Kembalikan HANYA format JSON valid tanpa \`\`\`json:
         responseMimeType: 'application/json'
       });
 
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = parseGeminiJson(text);
 
       return res.json({
         success: true,
@@ -893,8 +927,7 @@ Kembalikan HANYA JSON valid:
         responseMimeType: 'application/json'
       });
 
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = parseGeminiJson(text);
 
       return res.json({
         success: true,
