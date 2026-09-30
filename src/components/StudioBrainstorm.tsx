@@ -12,6 +12,7 @@ import {
 import { PromptConcept, GeneratorOptions } from '../types';
 import { PromptCard } from './PromptCard';
 import { CsvExportModal } from './CsvExportModal';
+import { safeFetchJson } from '../utils/api';
 import { 
   Sparkles, 
   Dices, 
@@ -76,13 +77,11 @@ export const StudioBrainstorm: React.FC<StudioBrainstormProps> = ({
     setInfoNotice(null);
 
     try {
-      const response = await fetch('/api/generate-prompts', {
+      const data = await safeFetchJson('/api/generate-prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(options)
       });
-
-      const data = await response.json();
 
       if (data.success && Array.isArray(data.data)) {
         setGeneratedPrompts(data.data);
@@ -90,11 +89,11 @@ export const StudioBrainstorm: React.FC<StudioBrainstormProps> = ({
           setInfoNotice(data.notice);
         }
       } else {
-        throw new Error(data.error || 'Gagal menghasilkan prompt video');
+        throw new Error(data.error || 'Gagal merumuskan prompt video');
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Terjadi gangguan jaringan saat memproses prompt. Silakan klik coba lagi.');
+      setError(err.message || 'Terjadi gangguan jaringan saat memproses prompt. Silakan klik tombol Coba Lagi.');
     } finally {
       setLoading(false);
     }

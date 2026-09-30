@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SeriesPack } from '../types';
+import { safeFetchJson } from '../utils/api';
 import { 
   Layers, 
   Sparkles, 
@@ -31,7 +32,7 @@ export const SeriesPackBuilder: React.FC<SeriesPackBuilderProps> = ({ initialCon
     setLoading(true);
 
     try {
-      const res = await fetch('/api/generate-series', {
+      const data = await safeFetchJson('/api/generate-series', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -41,11 +42,10 @@ export const SeriesPackBuilder: React.FC<SeriesPackBuilderProps> = ({ initialCon
         })
       });
 
-      const data = await res.json();
       if (data.success && data.data) {
         setSeriesData(data.data);
-      } else if (data.clips) {
-        setSeriesData(data);
+      } else if (data.data?.clips || (data as any).clips) {
+        setSeriesData((data.data || data) as any);
       }
     } catch (err) {
       console.error(err);

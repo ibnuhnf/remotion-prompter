@@ -876,6 +876,26 @@ Kembalikan HANYA JSON valid:
   }
 });
 
+// Guard: Unmatched /api/* routes must return JSON, never HTML index.html
+app.all('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `API route '${req.method} ${req.path}' tidak ditemukan`
+  });
+});
+
+// Global API error handler ensuring JSON responses
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Server error on route:', req.path, err);
+  if (req.path.startsWith('/api')) {
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Terjadi kesalahan pada server API'
+    });
+  }
+  next(err);
+});
+
 // Configure Vite or Static File Serving
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

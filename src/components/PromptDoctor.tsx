@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { safeFetchJson } from '../utils/api';
 import { 
   Wand2, 
   Sparkles, 
@@ -20,13 +21,15 @@ export const PromptDoctor: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [copiedType, setCopiedType] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleUpscale = async () => {
     if (!rawInput.trim()) return;
     setLoading(true);
+    setError(null);
 
     try {
-      const res = await fetch('/api/upscale-prompt', {
+      const data = await safeFetchJson('/api/upscale-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -36,12 +39,14 @@ export const PromptDoctor: React.FC = () => {
         })
       });
 
-      const data = await res.json();
       if (data.success && data.data) {
         setResult(data.data);
+      } else {
+        setError(data.error || 'Gagal merombak prompt. Silakan klik tombol Coba Lagi.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setError('Koneksi terputus sesaat. Silakan klik tombol Coba Lagi.');
     } finally {
       setLoading(false);
     }

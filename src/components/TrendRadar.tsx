@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MarketTrend } from '../types';
+import { safeFetchJson } from '../utils/api';
 import { 
   TrendingUp, 
   Sparkles, 
@@ -34,9 +35,8 @@ export const TrendRadar: React.FC<TrendRadarProps> = ({ onSelectTrendForStudio }
 
   const fetchTrends = async () => {
     try {
-      const res = await fetch('/api/trends');
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeFetchJson('/api/trends');
+      if (data.success && data.data) {
         setTrends(data.data);
         setSeasonalData(data.seasonalCalendar);
       }
@@ -48,12 +48,11 @@ export const TrendRadar: React.FC<TrendRadarProps> = ({ onSelectTrendForStudio }
   const handleRefreshLiveTrends = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/trends/live', {
+      const data = await safeFetchJson('/api/trends/live', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category: selectedFilter })
       });
-      const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setTrends(data.data);
       }
