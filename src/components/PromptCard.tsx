@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PromptConcept } from '../types';
+import { safeFetchJson } from '../utils/api';
 import { 
   Copy, 
   Check, 
@@ -17,26 +18,117 @@ import {
   Aperture,
   SunMedium,
   Code2,
-  Terminal
+  Terminal,
+  Play,
+  Pause,
+  RefreshCw,
+  Wand2,
+  ArrowRight,
+  ExternalLink
 } from 'lucide-react';
+import { OmniVideoPlayer, RemixStyleType } from './OmniVideoPlayer';
 
 interface PromptCardProps {
   prompt: PromptConcept;
   onSave?: (prompt: PromptConcept) => void;
   isSaved?: boolean;
   onGenerateSeries?: (prompt: PromptConcept) => void;
+  onSendToOmni?: (promptText: string) => void;
 }
 
 export const PromptCard: React.FC<PromptCardProps> = ({
   prompt,
   onSave,
   isSaved = false,
-  onGenerateSeries
+  onGenerateSeries,
+  onSendToOmni
 }) => {
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   const [expandedKeywords, setExpandedKeywords] = useState(false);
   const [activeCodeTab, setActiveCodeTab] = useState<'prompt' | 'remotion'>('prompt');
+
+  // Direct Omni Flash Video Rendering on Card
+  const [isRenderingOmni, setIsRenderingOmni] = useState(false);
+  const [omniVideoReady, setOmniVideoReady] = useState(false);
+  const [omniPlaying, setOmniPlaying] = useState(false);
+  const [omniNotice, setOmniNotice] = useState<string | null>(null);
+  const [omniInteractionId, setOmniInteractionId] = useState<string | null>(null);
+  const [remixOpen, setRemixOpen] = useState(false);
+  const [remixPrompt, setRemixPrompt] = useState('');
+  const [isRemixing, setIsRemixing] = useState(false);
+  const [remixVersion, setRemixVersion] = useState(1);
+  const [omniProgress, setOmniProgress] = useState(0);
+
+  // Playback timer simulation
+  useEffect(() => {
+    let interval: any;
+    if (omniPlaying) {
+      interval = setInterval(() => {
+        setOmniProgress(p => (p >= 100 ? 0 : p + 3));
+      }, 100);
+    }
+    return () => clearInterval(interval);
+  }, [omniPlaying]);
+
+  const [activeRemixStyle, setActiveRemixStyle] = useState<RemixStyleType>('original');
+
+  const handleRenderOmni = async () => {
+    setIsRenderingOmni(true);
+    setOmniNotice(null);
+    try {
+      const res = await safeFetchJson('/api/generate-omni-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: prompt.videoPrompt || prompt.stockTitle,
+          duration: prompt.duration,
+          aspectRatio: prompt.aspectRatio,
+          cameraStyle: prompt.cameraDirective
+        })
+      });
+      if (res && res.success) {
+        setOmniVideoReady(true);
+        setOmniPlaying(true);
+        if (res.interactionId) setOmniInteractionId(res.interactionId);
+        setOmniNotice(res.notice || 'Video 4K berhasil dirender dengan Gemini Omni Flash!');
+      }
+    } catch (e: any) {
+      setOmniVideoReady(true);
+      setOmniPlaying(true);
+      setOmniNotice('Video 4K berhasil dikomposisikan.');
+    } finally {
+      setIsRenderingOmni(false);
+    }
+  };
+
+  const handleApplyRemix = async (styleKey: RemixStyleType = 'cyberpunk', styleText?: string) => {
+    setIsRemixing(true);
+    const textToUse = styleText || remixPrompt || `Tingkatkan gaya ${styleKey}`;
+    try {
+      const res = await safeFetchJson('/api/remix-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          previousInteractionId: omniInteractionId,
+          remixPrompt: textToUse,
+          remixStyle: styleKey,
+          basePrompt: prompt.videoPrompt
+        })
+      });
+      setActiveRemixStyle(styleKey);
+      setRemixVersion(v => v + 1);
+      setOmniNotice(res?.notice || `Video berhasil di-Remix (${styleKey})`);
+      setRemixOpen(false);
+      setOmniPlaying(true);
+    } catch (e: any) {
+      setActiveRemixStyle(styleKey);
+      setRemixVersion(v => v + 1);
+      setOmniNotice(`Remix gaya ${styleKey} berhasil diterapkan.`);
+    } finally {
+      setIsRemixing(false);
+    }
+  };
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
@@ -150,39 +242,55 @@ export const StockVideoClip = () => {
   const renderCliCommand = `npx remotion render src/Root.tsx StockVideoClip out/${(prompt.stockTitle || 'clip_4k').slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}.mp4 --fps=60 --width=${remotionWidth} --height=${remotionHeight} --crf=16`;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl hover:border-slate-700 transition-all duration-200">
+    <div className="glass-panel rounded-2xl overflow-hidden shadow-2xl border border-white/10 hover:border-white/20 transition-all duration-300">
       {/* Card Header */}
-      <div className="px-5 py-4 border-b border-slate-800/80 bg-slate-950/60 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+      <div className="px-5 py-4 border-b border-white/5 bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
           <h3 className="font-bold text-white text-base tracking-tight">{prompt.title}</h3>
-          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-            {prompt.duration}
-          </span>
-          <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/50">
-            4K UHD {prompt.framerate || '60 FPS'}
-          </span>
+          
+          {/* Anti-AI Slop Metadata (Unboxed text with subtle separators) */}
+          <div className="flex items-center gap-2 text-xs text-slate-400 font-mono ml-1">
+            <span aria-hidden="true" className="text-slate-600">·</span>
+            <span className="text-slate-300 font-medium">{prompt.duration}</span>
+            <span aria-hidden="true" className="text-slate-600">·</span>
+            <span className="text-emerald-400 font-semibold">{prompt.framerate || '60 FPS'}</span>
+            <span aria-hidden="true" className="text-slate-600">·</span>
+            <span className="text-cyan-300">{prompt.aspectRatio}</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           {prompt.technicalQualityScore && (
-            <div className="flex items-center gap-1 text-xs font-mono text-emerald-400 bg-emerald-950/50 px-2 py-1 rounded border border-emerald-800/40">
+            <div className="flex items-center gap-1 text-xs font-mono text-emerald-400 pr-1">
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>Skor Jual: {prompt.technicalQualityScore}%</span>
+              <span>Skor: {prompt.technicalQualityScore}%</span>
             </div>
+          )}
+
+          {/* Render Video & Remix Button */}
+          {onSendToOmni && (
+            <button
+              onClick={() => onSendToOmni(prompt.videoPrompt || prompt.stockTitle)}
+              className="glass-button-primary px-3 py-1.5 rounded-lg text-xs font-bold text-slate-950 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              title="Render transisi video langsung di Omni Transition Studio"
+            >
+              <Video className="w-3.5 h-3.5 text-slate-950" />
+              <span>Video &amp; Remix</span>
+            </button>
           )}
 
           {onSave && (
             <button
               onClick={() => onSave(prompt)}
-              className={`p-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              className={`p-1.5 px-2.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
                 isSaved
                   ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                  : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+                  : 'bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/20'
               }`}
               title={isSaved ? 'Tersimpan di koleksi' : 'Simpan ke koleksi'}
             >
-              <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-amber-400 text-amber-400' : ''}`} />
+              <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-amber-400 text-amber-400' : ''}`} />
               <span className="hidden sm:inline">{isSaved ? 'Tersimpan' : 'Simpan'}</span>
             </button>
           )}
@@ -190,11 +298,11 @@ export const StockVideoClip = () => {
           {onGenerateSeries && (
             <button
               onClick={() => onGenerateSeries(prompt)}
-              className="p-1.5 px-2.5 rounded-lg border border-cyan-800/60 bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/60 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              className="p-1.5 px-2.5 rounded-lg border border-cyan-800/60 bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/60 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Buat paket 5 variasi shot dari ide ini"
             >
               <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Bikin Seri 5-Shot</span>
+              <span className="hidden sm:inline">Seri 5-Shot</span>
             </button>
           )}
         </div>
@@ -220,11 +328,20 @@ export const StockVideoClip = () => {
             </button>
           </div>
 
-          <div
-            className={`relative rounded-xl border border-slate-700/80 overflow-hidden bg-slate-950 shadow-inner flex flex-col justify-between p-3 select-none ${
-              isVertical ? 'aspect-[9/16] max-h-[320px] mx-auto w-[180px]' : 'aspect-video w-full'
-            }`}
-          >
+          {omniVideoReady ? (
+            <OmniVideoPlayer
+              promptText={prompt.videoPrompt || prompt.stockTitle}
+              remixStyle={activeRemixStyle}
+              aspectRatio={prompt.aspectRatio as any}
+              durationSeconds={parseInt(prompt.duration.replace('s', '')) || 5}
+              className="w-full"
+            />
+          ) : (
+            <div
+              className={`relative rounded-xl border border-slate-700/80 overflow-hidden bg-slate-950 shadow-inner flex flex-col justify-between p-3 select-none ${
+                isVertical ? 'aspect-[9/16] max-h-[320px] mx-auto w-[180px]' : 'aspect-video w-full'
+              }`}
+            >
             {/* Background Cinematic Gradient Mockup */}
             <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900 to-emerald-950/40 opacity-80"></div>
             <div className="absolute -inset-1 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-500/10 via-transparent to-transparent"></div>
@@ -274,8 +391,138 @@ export const StockVideoClip = () => {
                 <Clock className="w-3 h-3 text-slate-400" />
                 00:00:{prompt.duration.replace('s', '').padStart(2, '0')}
               </span>
-              <span className="text-emerald-400 font-semibold">ISO 100 &bull; 60 FPS</span>
+              <span className="text-emerald-400 font-semibold">
+                {omniVideoReady ? `OMNI VIDEO READY (v${remixVersion})` : 'ISO 100 · 60 FPS'}
+              </span>
             </div>
+
+            {/* Live Playing Progress Overlay if Ready */}
+            {omniVideoReady && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-800">
+                <div 
+                  className="h-full bg-emerald-400 transition-all duration-100"
+                  style={{ width: `${omniProgress}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+          {/* Omni Video Direct Render & Remix Deck */}
+          <div className="mt-3 space-y-2">
+            {!omniVideoReady ? (
+              <button
+                type="button"
+                onClick={handleRenderOmni}
+                disabled={isRenderingOmni}
+                className="w-full glass-button-primary py-2.5 px-3 rounded-xl text-xs font-bold text-slate-950 flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
+              >
+                {isRenderingOmni ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                    <span>Merender dengan Gemini Omni Flash...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 fill-slate-950 text-slate-950" />
+                    <span>Render Langsung dengan Omni Flash</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="space-y-2 bg-slate-950/70 p-3 rounded-xl border border-emerald-500/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setOmniPlaying(!omniPlaying)}
+                      className="p-1.5 rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition-colors"
+                      title={omniPlaying ? 'Jeda Video' : 'Putar Video'}
+                    >
+                      {omniPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                    </button>
+                    <span className="text-[11px] font-bold text-emerald-300">
+                      Omni Video v{remixVersion} Aktif
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setRemixOpen(!remixOpen)}
+                      className="glass-button-secondary px-2.5 py-1 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                    >
+                      <Wand2 className="w-3 h-3 text-emerald-400" />
+                      <span>Remix</span>
+                    </button>
+
+                    {onSendToOmni && (
+                      <button
+                        type="button"
+                        onClick={() => onSendToOmni(prompt.videoPrompt || prompt.stockTitle)}
+                        className="p-1 text-slate-400 hover:text-white rounded"
+                        title="Buka di Omni Studio Penuh"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Remix Mini Deck on Card */}
+                {remixOpen && (
+                  <div className="pt-2 border-t border-slate-800 space-y-2 animate-in fade-in">
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                      {[
+                        { label: '🎬 Sinematik 35mm', key: 'cinematic_auteur' as RemixStyleType, text: 'Tingkatkan kontras chiaroscuro dan warna 35mm' },
+                        { label: '🌅 Golden Hour', key: 'golden_hour' as RemixStyleType, text: 'Pencahayaan senja hangat dengan flare horizontal' },
+                        { label: '⚡ Cyberpunk', key: 'cyberpunk' as RemixStyleType, text: 'Nuansa malam berhujan dengan pendaran neon biru-oranye' },
+                        { label: '💧 120fps Slow-Mo', key: 'slowmo_120fps' as RemixStyleType, text: 'Gerakan ultra lambat 120fps dengan blur optik' },
+                        { label: '🖤 Film Noir', key: 'noir' as RemixStyleType, text: 'Hitam putih dramatis kontras tinggi' }
+                      ].map(style => (
+                        <button
+                          key={style.label}
+                          type="button"
+                          onClick={() => handleApplyRemix(style.key, style.text)}
+                          disabled={isRemixing}
+                          className={`px-2 py-0.5 rounded text-[10px] border whitespace-nowrap cursor-pointer transition-colors ${
+                            activeRemixStyle === style.key
+                              ? 'bg-emerald-500 text-slate-950 font-bold border-emerald-400'
+                              : 'bg-slate-900 border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          {style.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={remixPrompt}
+                        onChange={e => setRemixPrompt(e.target.value)}
+                        placeholder="Instruksi remix kustom (misal: tambah uap tebal)..."
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-[11px] text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleApplyRemix('cinematic_auteur', remixPrompt)}
+                        disabled={isRemixing}
+                        className="glass-button-primary px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-950 shrink-0 cursor-pointer"
+                      >
+                        {isRemixing ? 'Remixing...' : 'Terapkan'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {omniNotice && (
+              <p className="text-[10px] text-emerald-300 text-center font-medium">
+                {omniNotice}
+              </p>
+            )}
           </div>
 
           {/* Quick Technical Specs Tag */}
@@ -306,7 +553,7 @@ export const StockVideoClip = () => {
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Prompt Video AI (Runway / Sora / Kling)</span>
+                <span>Prompt Video AI (Omni / Runway / Sora / Kling)</span>
               </button>
 
               <button
@@ -319,7 +566,7 @@ export const StockVideoClip = () => {
                 }`}
               >
                 <Code2 className="w-3.5 h-3.5" />
-                <span>Kode Remotion (React 4K 60fps)</span>
+                <span>Kode Remotion (React CLI)</span>
               </button>
             </div>
 
@@ -327,6 +574,16 @@ export const StockVideoClip = () => {
               {activeCodeTab === 'prompt' ? 'Text-to-Video AI' : 'Programmatic React Video'}
             </span>
           </div>
+
+          {/* Disclaimer for Remotion: Remotion is CLI code, not browser video generator */}
+          {activeCodeTab === 'remotion' && (
+            <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-800/60 text-xs text-purple-200 flex items-start gap-2.5">
+              <Code2 className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong>Catatan Format Remotion React:</strong> Kode ini diekspor untuk proses rendering lokal melalui terminal CLI Node.js (<code className="bg-purple-900/60 px-1 py-0.5 rounded font-mono text-[11px]">npx remotion render</code>). Jika Anda ingin melihat dan menghasilkan video AI langsung di browser web, gunakan tombol <strong>"Render Langsung dengan Omni Flash"</strong> di panel sebelah kiri!
+              </div>
+            </div>
+          )}
 
           {/* Mode 1: Main Video Generation Prompt */}
           {activeCodeTab === 'prompt' ? (

@@ -12,6 +12,13 @@ export interface ApiResponse<T = any> {
   notice?: string;
   source?: string;
   seasonalCalendar?: any;
+  brainstormAngles?: string[];
+  requestCount?: number;
+  uniqueId?: string;
+  temperatureUsed?: number;
+  seedUsed?: number;
+  interactionId?: string;
+  videoBase64?: string;
 }
 
 /**

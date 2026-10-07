@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { StudioBrainstorm } from './components/StudioBrainstorm';
+import { OmniTransitionStudio } from './components/OmniTransitionStudio';
 import { TrendRadar } from './components/TrendRadar';
 import { SeriesPackBuilder } from './components/SeriesPackBuilder';
 import { PromptDoctor } from './components/PromptDoctor';
@@ -8,17 +9,18 @@ import { RemotionStudio } from './components/RemotionStudio';
 import { SavedPrompts } from './components/SavedPrompts';
 import { MicrostockGuideModal } from './components/MicrostockGuideModal';
 import { PromptConcept } from './types';
-import { Film, Sparkles, TrendingUp, Layers, HelpCircle, Heart } from 'lucide-react';
+import { Film, Sparkles, TrendingUp, Layers, HelpCircle, Heart, Video } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('studio');
   const [savedPrompts, setSavedPrompts] = useState<PromptConcept[]>([]);
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
 
-  // States passed from other tabs to Studio or Series Builder
+  // States passed from other tabs to Studio, Omni or Series Builder
   const [studioCategory, setStudioCategory] = useState<string | undefined>(undefined);
   const [studioIdea, setStudioIdea] = useState<string | undefined>(undefined);
   const [seriesConcept, setSeriesConcept] = useState<string | undefined>(undefined);
+  const [omniPrompt, setOmniPrompt] = useState<string | undefined>(undefined);
 
   // Load saved prompts from localStorage on mount
   useEffect(() => {
@@ -101,6 +103,13 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // From PromptCard -> Render Video in Omni Transition Studio
+  const handleSendToOmni = (promptText: string) => {
+    setOmniPrompt(promptText);
+    setActiveTab('omni');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
       {/* Header */}
@@ -118,9 +127,14 @@ export default function App() {
             onSavePrompt={handleSavePrompt}
             savedPrompts={savedPrompts}
             onGenerateSeries={handleGenerateSeriesFromPrompt}
+            onSendToOmni={handleSendToOmni}
             initialCategory={studioCategory}
             initialIdea={studioIdea}
           />
+        )}
+
+        {activeTab === 'omni' && (
+          <OmniTransitionStudio initialPrompt={omniPrompt} />
         )}
 
         {activeTab === 'trends' && (

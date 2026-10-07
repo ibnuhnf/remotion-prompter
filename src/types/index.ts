@@ -68,4 +68,9 @@ export interface GeneratorOptions {
   generatorTarget: string;
   buyerNiche: string;
   count: number;
+  brainstormStyle?: string;
+  temperature?: number;
+  unique_id?: string;
+  request_count?: number;
+  seed?: number;
 }
